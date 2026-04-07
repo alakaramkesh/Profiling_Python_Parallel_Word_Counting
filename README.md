@@ -6,6 +6,13 @@ The goal is not only to compute word frequencies, but also to understand how dif
 
 ---
 
+## 🚀 Implementations
+
+The project includes three versions:
+
+Sequential: processes files one by one
+Multiprocessing: uses multiple processes (true parallelism)
+Threading: uses multiple threads (limited by GIL)
 
 ---
 
