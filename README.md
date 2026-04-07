@@ -33,3 +33,9 @@ Then run:
 
 ```bash
 python word_counting.py
+```
+چچ
+---
+##  Disclaimer!
+
+There is a DEBUG flag in the code that can be used to print intermediate execution details (such as which worker processes each file). It was only used during development and is disabled by default, so it does not affect performance measurements.
