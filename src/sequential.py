@@ -53,6 +53,15 @@ def merge_counts(partial_counts):
         total_counts.update(local_counts)
     return total_counts
 
+def summarize_times(times):
+    # Return descriptive statistics for a list of runtimes
+    return (
+        statistics.mean(times),
+        statistics.stdev(times) if len(times) > 1 else 0.0,
+        min(times),
+        max(times),
+    )
+
 # ---------------------------- Sequential ----------------------------
 def sequential_word_count(corpus_dir):
     file_paths = sorted(corpus_dir.glob("*.txt"))
@@ -86,47 +95,7 @@ def sequential_word_count(corpus_dir):
 
     return total_counts, timings
 
-def measure_sequential(corpus_dir, nb_runs):
-    # Run the sequential version several times and report average timings
-    times = []
-    map_times = []
-    merge_times = []
-    read_times = []
-    tokenize_times = []
-    count_times = []
-    result = None
-
-    for i in range(nb_runs):
-        result, timings = sequential_word_count(corpus_dir)
-
-        times.append(timings["total_time"])
-        map_times.append(timings["map_time"])
-        merge_times.append(timings["merge_time"])
-        read_times.append(timings["read_time"])
-        tokenize_times.append(timings["tokenize_time"])
-        count_times.append(timings["count_time"])
-
-        print(
-            f"Run {i+1}: total={timings['total_time']:.6f}s | "
-            f"map={timings['map_time']:.6f}s | "
-            f"merge={timings['merge_time']:.6f}s | "
-            f"read={timings['read_time']:.6f}s | "
-            f"tokenize={timings['tokenize_time']:.6f}s | "
-            f"count={timings['count_time']:.6f}s"
-        )
-    mean_t, std_t, min_t, max_t = summarize_times(times)
-    mean_m, std_m, min_m, max_m = summarize_times(map_times)
-    mean_merge, std_merge, min_merge, max_merge = summarize_times(merge_times)
-
-    print(
-        f"Sequential total={mean_t:.4f}s (std: {std_t:.4f}) "
-        f"| map={mean_m:.4f}s "
-        f"| merge={mean_merge:.4f}s "
-        f"| min={min_t:.4f}s max={max_t:.4f}s"
-    )
-
-    return result, mean_t
-# ---------------------------- parallelizing ----------------------------
+# ---------------------------- parallelizing(multiprocess) ----------------------------
 def parallel_word_count(corpus_dir, nb_workers):
     # Process files in parallel with multiprocessing and collect detailed timings
     file_paths = sorted(corpus_dir.glob("*.txt"))
@@ -157,56 +126,7 @@ def parallel_word_count(corpus_dir, nb_workers):
     }
     return total_counts, timings
 
-def measure_parallel(corpus_dir, nb_workers, nb_runs):
-    # Run the parallel version several times and report average timings
-    times = []
-    map_times = []
-    merge_times = []
-    read_times = []
-    tokenize_times = []
-    count_times = []
-    result = None
-
-    for i in range(nb_runs):
-        result, timings = parallel_word_count(corpus_dir, nb_workers=nb_workers)
-
-        times.append(timings["total_time"])
-        map_times.append(timings["map_time"])
-        merge_times.append(timings["merge_time"])
-        read_times.append(timings["read_time"])
-        tokenize_times.append(timings["tokenize_time"])
-        count_times.append(timings["count_time"])
-
-        print(
-            f"Run {i+1}: total={timings['total_time']:.6f}s | "
-            f"map={timings['map_time']:.6f}s | "
-            f"merge={timings['merge_time']:.6f}s | "
-            f"read={timings['read_time']:.6f}s | "
-            f"tokenize={timings['tokenize_time']:.6f}s | "
-            f"count={timings['count_time']:.6f}s"
-        )
-    mean_t, std_t, min_t, max_t = summarize_times(times)
-    mean_m, std_m, min_m, max_m = summarize_times(map_times)
-    mean_merge, std_merge, min_merge, max_merge = summarize_times(merge_times)
-
-    print(
-        f"[Parallel {nb_workers}w] total={mean_t:.4f}s (std:{std_t:.4f}) "
-        f"| map={mean_m:.4f}s "
-        f"| merge={mean_merge:.4f}s "
-        f"| min={min_t:.4f}s max={max_t:.4f}s"
-    )
-
-    return result, mean_t
-
-def summarize_times(times):
-    # Return descriptive statistics for a list of runtimes
-    return (
-        statistics.mean(times),
-        statistics.stdev(times) if len(times) > 1 else 0.0,
-        min(times),
-        max(times),
-    )
-# ---------------------------- Multithread ----------------------------
+# ---------------------------- parallelizing(multithread) ----------------------------
 
 def thread_worker(file_queue, results, lock):
     # Each thread repeatedly takes a file from the queue and processes it
@@ -268,8 +188,9 @@ def thread_word_count(corpus_dir, nb_workers):
     }
     return total_counts, timings
 
-def measure_threads(corpus_dir, nb_workers, nb_runs):
-    # Run thread-based version multiple times
+
+def measurements(run_fn, label, nb_runs, corpus_dir, nb_workers=None):
+    # Run one implementation several times and report summary statistics
     times = []
     map_times = []
     merge_times = []
@@ -277,9 +198,11 @@ def measure_threads(corpus_dir, nb_workers, nb_runs):
     tokenize_times = []
     count_times = []
     result = None
-
     for i in range(nb_runs):
-        result, timings = thread_word_count(corpus_dir, nb_workers)
+        if nb_workers is None:
+            result, timings = run_fn(corpus_dir)
+        else:
+            result, timings = run_fn(corpus_dir, nb_workers)
 
         times.append(timings["total_time"])
         map_times.append(timings["map_time"])
@@ -287,6 +210,7 @@ def measure_threads(corpus_dir, nb_workers, nb_runs):
         read_times.append(timings["read_time"])
         tokenize_times.append(timings["tokenize_time"])
         count_times.append(timings["count_time"])
+
         print(
             f"Run {i+1}: total={timings['total_time']:.6f}s | "
             f"map={timings['map_time']:.6f}s | "
@@ -297,37 +221,28 @@ def measure_threads(corpus_dir, nb_workers, nb_runs):
         )
 
     mean_t, std_t, min_t, max_t = summarize_times(times)
+    mean_m, std_m, min_m, max_m = summarize_times(map_times)
+    mean_merge, std_merge, min_merge, max_merge = summarize_times(merge_times)
 
-    print(
-        f"[Threads {nb_workers}w] total={mean_t:.4f}s (std:{std_t:.4f}) "
-        f"| min={min_t:.4f}s max={max_t:.4f}s"
-    )
-
-    return result, mean_t
-
-def measure_version(run_fn, label, nb_runs, corpus_dir, nb_workers=None):
-    times = []
-    result = None
-    for i in range(nb_runs):
-        # Decide how to call the function
-        if nb_workers is None:
-            result, timings = run_fn(corpus_dir)
-        else:
-            result, timings = run_fn(corpus_dir, nb_workers)
-        times.append(timings["total_time"])
-        print(f"Run {i+1}: total={timings['total_time']:.6f}s")
-    mean_t, std_t, min_t, max_t = summarize_times(times)
     print(
         f"{label} total={mean_t:.4f}s (std:{std_t:.4f}) "
+        f"| map={mean_m:.4f}s "
+        f"| merge={mean_merge:.4f}s "
         f"| min={min_t:.4f}s max={max_t:.4f}s"
     )
+
     return result, mean_t
 # ---------------------------- Main ----------------------------
 def main():
     corpus_dir = Path("data/corpus")
 
     print("=== Sequential version ===")
-    seq_result, seq_avg_time = measure_sequential(corpus_dir, nb_runs=5)
+    seq_result, seq_avg_time = measurements(
+        sequential_word_count,
+        "Sequential",
+        5,
+        corpus_dir,
+    )
     print("\nNumber of unique words:", len(seq_result))
     print("\nTop 10 words:")
     for word, count in seq_result.most_common(10):
@@ -336,7 +251,13 @@ def main():
     print("\n=== Parallel with different numbers of workers ===")
     for nb_workers in [1, 2, 4, 8]:
         print(f"\n--- Testing with {nb_workers} worker(s) ---")
-        par_result, par_avg_time = measure_parallel(corpus_dir, nb_workers=nb_workers, nb_runs=5)
+        par_result, par_avg_time = measurements(
+            parallel_word_count,
+            f"Parallel {nb_workers} workers:",
+            5,
+            corpus_dir,
+            nb_workers,
+        )
         print("Results are equal:", seq_result == par_result)
         assert seq_result == par_result, f"Mismatch with {nb_workers} workers"
         speedup = seq_avg_time / par_avg_time
@@ -345,14 +266,15 @@ def main():
     print("\n=== Thread-based parallel version (threading) ===")
     for nb_workers in [1, 2, 4, 8]:
         print(f"\n--- Testing threads with {nb_workers} worker(s) ---")
-
-        thr_result, thr_avg_time = measure_threads(
-            corpus_dir, nb_workers=nb_workers, nb_runs=5
+        thr_result, thr_avg_time = measurements(
+            thread_word_count,
+            f"Threads {nb_workers} workers:",
+            5,
+            corpus_dir,
+            nb_workers,
         )
-
         print("Results are equal:", seq_result == thr_result)
         assert seq_result == thr_result
-
         speedup = seq_avg_time / thr_avg_time
         print("Speed-up:", round(speedup, 3), "x")
 if __name__ == "__main__":
