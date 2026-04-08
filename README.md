@@ -34,7 +34,7 @@ Then run:
 ```bash
 python word_counting.py
 ```
-چچ
+
 ---
 ##  Disclaimer!
 
